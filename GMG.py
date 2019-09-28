@@ -34,10 +34,10 @@ class hero(meep):
         print("With a sound like an angel clapping, a hero joins the party!")
         self.team = 'good'
         self.hp = random.randint(45, 105)
-        self.name = input("What is this hero's name? ")
         self.path = path
-        print("{} is a {} of the light with {} hit points.".format(self.name, 
-                self.path, self.hp))
+        print(f"The new hero is a {self.path} of the light with {self.hp} hit " 
+                f"points.")
+        self.name = input("What is this hero's name? ")
         self.targets = []
         self.poison = 0
 
@@ -53,6 +53,12 @@ class hero(meep):
     def combat(self, gameRoom, party):
         if len(gameRoom.monsters) == 0:
             return
+        for monster in gameRoom.monsters:
+            if monster.hp <= 0:
+                gameRoom.monsters.remove(monster)
+                for hero in party:
+                    if monster in hero.targets:
+                        hero.targets.remove(monster)
         while len(self.targets) < 3 and \
                 len(gameRoom.monsters) > len(self.targets):
             self.targets.append(random.choice(
@@ -86,12 +92,13 @@ class hero(meep):
                     "deals {} damage.".format(hero.poison))
             hero.poison = math.floor(hero.poison / 2)
         if hero.poison < 0:
-            hero.heal(hero.poison)
-            print("The lingering touch of nature heals {} ".format(hero.poison) +
-                    "damage from {}.".format(hero.name))
+            hero.heal(-1 * hero.poison)
+            print(f"The lingering touch of nature heals {-1 * hero.poison} "
+                    f"damage from {hero.name}.")
             hero.poison = math.floor(hero.poison / 2)
         if hero.hp < 0:
-            party.remove(hero)
+            if hero in party:
+                party.remove(hero)
             if len(party) > 0:
                 print("{} has fallen. The party mourns.".format(hero.name))
             else:
@@ -216,6 +223,8 @@ class druid(hero):
             target.poison(-2)
             self.naturepower -= 10
             return
+        elif self.form == 'healer':
+            super().combat(gameRoom, party)
         elif self.form == 'wolbear':
             if len(self.targets) > 3:
                 self.targets = self.targets[:2]
@@ -223,7 +232,7 @@ class druid(hero):
             self.targets = [monster for monster in gameRoom.monsters]
         else:
             self.savetargets = len(self.targets)
-            self.combat(gameRoom, party)
+            super().combat(gameRoom, party)
             if len(self.targets) < self.savetargets:
                 self.combat(gameRoom, party)
             global myscore
@@ -409,7 +418,8 @@ class monster(meep):
                     if self in hero.targets])
             monster.attack(target)
             if target.hp < 0:
-                party.remove(target)
+                if target in party:
+                    party.remove(target)
                 if len(party) > 0:
                     print("{} has fallen. The party mourns.".format(target.name))
                 else:
@@ -432,7 +442,8 @@ class bloodknight(monster):
                 "blade, dealing {} damage and leaching {} ".format(amount, heal) +
                 "hit points!")
         target.damage(amount + heal)
-        self.heal(heal)
+        if self.hp > 0:
+            self.heal(heal)
 
     def doLeftAlone(self, gameRoom, party):
         amount = random.randint(2,5)
@@ -590,11 +601,11 @@ class teaspirit(monster):
         global steep
         amount = math.floor(random.randint(1,8) * (1 + (steep / 10)))
         if self.name == "The Iron Maiden of Mercy":
-            target.heal(amount)
-            target.poison += math.ceil(amount * 1.5)
             print("{} heals {} for {} hit points, ".format(self.name, 
                     target.name, amount) + "but will exact a terrible price "
                     "later.")
+            target.heal(amount)
+            target.poison += math.ceil(amount * 1.5)
         else:
             target.damage(amount)
             print("{} attacks {} for {} damage!".format(self.name, 
@@ -606,7 +617,7 @@ class teaspirit(monster):
         if roll == 1:
             print("{} brews up a new monster!".format(self.name))
             self.brew *= 2
-            new = newmonster()
+            new = newmonster(gameRoom.monsters)
             new.hp = math.ceil(new.hp / self.brew) + steep
             self.hp -= math.ceil(self.hp / 2)
             if self.hp <= 0:
@@ -651,7 +662,7 @@ class teaspirit(monster):
             elif roll == 1:
                 print("{} brews up a new monster!".format(self.name))
                 self.brew *= 2
-                new = newmonster()
+                new = newmonster(gameRoom.monsters)
                 new.hp = math.ceil(new.hp / self.brew) + steep
                 self.hp -= math.ceil(self.hp / 2)
                 if self.hp <= 0:
@@ -726,7 +737,7 @@ def newmonster(monsters):
                 "Zeld", "Marcos", "Alastor", "Zol", "Darksol", "Johan", "Olam")
         new.name = random.choice([name for name in namelist 
                 if name not in [monster.name for monster in monsters]])
-        print("{} the bloodknight approaches.".format(new.name))
+        print("{} the blood knight approaches.".format(new.name))
     elif path == 'CRT':
         new = CRT()
         namelist = ("RCA", "Gauss", "Nimo", "Zeus", "Sony", "Panasonic",
@@ -818,9 +829,10 @@ print(" ")
 print("GOOD MORNING, GAUNTLET")
 print(" ")
 if scoredict:
-    highscores = scoredict[totalturns]
-    if highscores is not None:
-        print(f"High score: {highscores[0][0]}: {highscores[0][1]}")
+    if totalturns in scoredict:
+        highscores = scoredict[totalturns]
+        if highscores is not None:
+            print(f"High score: {highscores[0][0]}: {highscores[0][1]}")
 print("The game will last {} turns. Good luck!".format(totalturns + 1))
 
 party = []
@@ -848,10 +860,17 @@ while turn <= totalturns and len(party) > 0:
             hero.turn(gameRoom, party)
         for monster in gameRoom.monsters:
             monster.turn(gameRoom, party)
-        myscore += math.ceil(
-                sum([monster.hp for monster in gameRoom.monsters]) *
-                (1 + (math.floor(1000 / sum([hero.hp for hero in party]))) / 10) *
-                turn / totalturns)
+        herohp = sum([hero.hp for hero in party])
+        if herohp < 200:
+            myscore += math.ceil(
+                    sum([monster.hp for monster in gameRoom.monsters]) *
+                    (1 + ((200 - herohp) / 100)) *
+                    turn / totalturns)
+        else:
+            myscore += math.ceil(
+                    sum([monster.hp for monster in gameRoom.monsters]) *
+                    (math.floor(200 / sum([hero.hp for hero in party]))) *
+                    turn / totalturns)
     turn += 1
 if len(gameRoom.monsters) == 0:
     print("{} stands, panting, over the prone ".format(party[0].name) +
@@ -871,18 +890,17 @@ def scorecrunch(scoredict, myscore, totalturns):
         scoredict[totalturns] = []
         scores = scoredict[totalturns]
     if any(scores):
-        scores.sort(key = lambda x: x[1])
-        if myscore > all(scores):
+        scores.sort(key = lambda x: int(x[1]), reverse = True)
+        if all([myscore > score[1] for score in scores]):
             print("A NEW HIGH SCORE YOU AMAZING MUFFIN!!")
             scoreName = input("TELL ME YOUR NAME, CHAMPION! ")
             scores.insert(0, (scoreName, myscore))
             scores = scores[:10]
-        elif myscore > any(scores):
+        elif any([myscore > score[1] for score in scores]):
             print("A new high score!!!")
             scoreName = input("Tell me your name, champion! ")
-            scores.append(0, (scoreName, myscore))
-            scores.sort(key)
-            scores.sort(key = lambda x: x[1])
+            scores.insert(0, (scoreName, myscore))
+            scores.sort(key = lambda x: int(x[1]), reverse = True)
             scores = scores[:10]
     else:
         print("a new high score. You amazing muffin. I didn't know you "
