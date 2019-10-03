@@ -51,7 +51,7 @@ class hero(meep):
             print(f"{self.name} strikes a righteous blow against {target.name} "
                     f"for {amount} damage!")
             target.damage(amount)
-            bonus += amount / 100
+            bonus += amount / 50
 
     def combat(self, gameRoom, party):
         global bonus 
@@ -86,7 +86,7 @@ class hero(meep):
                 for hero in party: 
                     if attackee in hero.targets:
                         hero.targets.remove(attackee)
-                bonus += 0.4
+                bonus += 1
 
     def transition(self, party):
         global bonus
@@ -105,10 +105,10 @@ class hero(meep):
                 party.remove(hero)
             if len(party) > 0:
                 print(f"{hero.name} has fallen. The party mourns.")
-                bonus -= 0.5
+                bonus -= 1
             else:
                 print("The party has fallen...")
-                bonus -= 1
+                bonus -= 2
 
     def turn(self, gameRoom, party):
         global bonus
@@ -116,7 +116,7 @@ class hero(meep):
         for monster in gameRoom.monsters:
             if monster.hp <= 0:
                 print(f"{monster.name} has fallen!")
-                bonus += 0.4
+                bonus += 1
                 gameRoom.monsters.remove(monster)
                 for hero in party:
                     if monster in hero.targets:
@@ -164,17 +164,17 @@ class barista(hero):
                 for hero in party: 
                     if attackee in hero.targets:
                         hero.targets.remove(attackee)
-                bonus += 0.4
+                bonus += 1
 
     def damage(self, amount):
         global bonus
         super().damage(amount)
         if self.hp > 0 and self.orders > 0:
             for target in self.targets:
-                target.damage(amount)
                 print(f"{self.name} spills a hot drink on {target.name}, "
                     f"dealing {amount} damage")
-            bonus += self.orders / 100
+                target.damage(amount)
+            bonus += self.orders / 50
             self.orders = 0
 
     def transition(self, party):
@@ -186,7 +186,7 @@ class barista(hero):
             print(f"{self.name} serves a highly-customized beverage to "
                     f"{target.name}, healing {self.orders * 2} hit points!")
             target.heal(self.orders * 2)
-            bonus += self.orders * 50
+            bonus += self.orders / 25
             self.orders = 0
 
 
@@ -204,7 +204,7 @@ class crusher(hero):
             print(f"{self.name} strikes a righteous blow against {target.name} "
                     f"for {amount} damage!")
         target.damage(amount)
-        bonus += amount / 100
+        bonus += amount / 50
 
 
 class druid(hero):
@@ -216,11 +216,11 @@ class druid(hero):
     def attack(self, target):
         global bonus
         if self.form == 'cassowary':
-            bonus = math.ceil(self.naturepower / 3)
-            amount = random.randint(2, 15) + bonus
+            attackBonus = math.ceil(self.naturepower / 3)
+            amount = random.randint(2, 15) + attackBonus
             print(f"{self.name} kicks {target.name} for {amount} damage!")
             target.damage(amount)
-            bonus += amount / 100
+            bonus += amount / 50
             self.naturepower += math.ceil(amount / 5)
         else:
             super().attack(target)
@@ -234,7 +234,7 @@ class druid(hero):
             target = random.choice([hero for hero in party 
                     if hero.hp <= self.hp])
             target.heal(6)
-            target.poison(-2)
+            target.poison += -2
             self.naturepower -= 10
             return
         elif self.form == 'healer':
@@ -245,9 +245,25 @@ class druid(hero):
             super().combat(gameRoom, party)
             self.targets = [monster for monster in gameRoom.monsters]
         else: #form == cassowary
+            if len(gameRoom.monsters) == 0:
+                return
+            for monster in gameRoom.monsters:
+                if monster.hp <= 0:
+                    gameRoom.monsters.remove(monster)
+                    for hero in party:
+                        if monster in hero.targets:
+                            hero.targets.remove(monster)
+            while len(self.targets) < 3 and \
+                    len(gameRoom.monsters) > len(self.targets):
+                self.targets.append(random.choice(
+                        [monster for monster in gameRoom.monsters 
+                        if monster not in self.targets]))
             self.savetargets = len(self.targets)
+            print(f"{self.name} is facing down {self.savetargets} monsters!")
             super().combat(gameRoom, party)
+            print(f"{self.name} is now facing {self.savetargets} monsters.")
             if len(self.targets) < self.savetargets:
+                print(f"{self.name} flies into a frenzy!")
                 self.combat(gameRoom, party)
 
     def damage(self, amount):
@@ -335,7 +351,7 @@ class janissary(hero):
                             hero.targets.remove(target2)
                     if target2 in gameRoom.monsters:
                         gameRoom.monsters.remove(target2)
-                    bonus += 0.25
+                    bonus += 0.5
 
 
 class paladin(hero):
@@ -367,7 +383,7 @@ class paladin(hero):
                     "{} for {} damage!".format(self.name, target.name, 
                     amount + weapondmg))
             target.damage(amount + weapondmg)
-            bonus += amount / 100
+            bonus += amount / 50
 
 
 class priest(hero):
@@ -384,7 +400,7 @@ class priest(hero):
                 self.targets = []
                 self.faith += 1
                 print(f"{self.name}'s faith is strengthened to {self.faith}.")
-                bonus += self.faith / 100
+                bonus += self.faith / 50
             else: 
                 print(f"{self.name} channels faith to heal the party for "
                         f"{self.faith} hit points!")
@@ -424,7 +440,7 @@ class monster(meep):
                     hero.targets.remove(self)
             if self in gameRoom.monsters:
                 gameRoom.monsters.remove(self)
-            bonus += 0.4
+            bonus += 1
             return
         if any(targetList):
             target = random.choice([hero for hero in party 
@@ -435,10 +451,10 @@ class monster(meep):
                     party.remove(target)
                 if len(party) > 0:
                     print(f"{target.name} has fallen. The party mourns.")
-                    bonus -= 0.5
+                    bonus -= 1
                 else:
                     print("The party has fallen...")
-                    bonus -= 1
+                    bonus -= 2
         else:
             monster.doLeftAlone(gameRoom, party)
 
@@ -506,6 +522,7 @@ class dragonstork(monster):
         self.deepbreath *= 2
 
     def turn(self, gameRoom, party):
+        global bonus
         print(" ")
         targetList = [hero for hero in party if self in hero.targets]
         if self.hp <= 0:
@@ -514,17 +531,20 @@ class dragonstork(monster):
                     hero.targets.remove(self)
             if self in gameRoom.monsters:
                 gameRoom.monsters.remove(self)
+            bonus += 0.4
             return
         if any(targetList):
             print("{} breathes out fire!".format(self.name))
-            for target in targetList:
-                monster.attack(target)
-                if target.hp < 0:
-                    party.remove(target)
+            for hero in party:
+                monster.attack(hero)
+                if hero.hp < 0:
+                    party.remove(hero)
                     if len(party) > 0:
-                        print("{} has fallen. The party mourns.".format(target.name))
+                        print(f"{hero.name} has fallen. The party mourns.")
+                        bonus -= 0.5
                     else:
                         print("The party has fallen...")
+                        bonus -= 1
         else:
             monster.doLeftAlone(gameRoom, party)
 
@@ -599,12 +619,12 @@ class spider(monster):
             print("{} doesn't feel so good.".format(target.name))
 
     def doLeftAlone(self, gameRoom, party):
-        print("{} sprays a green ichor from its jaws!".format(self.name))
+        print(f"{self.name} sprays a green ichor from its jaws!")
         for hero in party:
             amount = random.randint(0,3)
             if amount != 0:
-                target.poison += amount
-                print("{} really doesn't feel good.".format(target.name))
+                hero.poison += amount
+                print(f"{hero.name} really doesn't feel good.")
 
 
 class teaspirit(monster):
@@ -864,9 +884,36 @@ party = []
 party.append(recruit())
 party.append(recruit())
 gameRoom = room(party)
+bonus = 10
 for hero in party:
     hero.transition(party)
 while turn <= totalturns and len(party) > 0:
+    if turn > 0:
+        herohp = sum([hero.hp for hero in party])
+        if herohp < 150:
+            scoreUp = math.ceil(
+                    (sum([monster.hp for monster in gameRoom.monsters]) + 
+                    len(gameRoom.monsters) + realRoomCount) * 
+                    (1 + ((100 - herohp) / 100)) * bonus * 
+                    realRoomCount / totalturns)
+            if scoreUp >= 0:
+                print(f"You got {scoreUp} points ("
+                        f"{sum([monster.hp for monster in gameRoom.monsters]) + len(gameRoom.monsters) + realRoomCount}"
+                        f"(1 + ((100 - {herohp}) / 100)) * {bonus} *"
+                        f"{realRoomCount} / {totalturns})")
+                myscore += scoreUp
+        else:
+            scoreUp = math.ceil(
+                    (sum([monster.hp for monster in gameRoom.monsters]) + 
+                    len(gameRoom.monsters) + realRoomCount) * 
+                    (100 / sum([hero.hp for hero in party])) * bonus * 
+                    realRoomCount / totalturns)
+            if scoreUp >= 0:
+                print(f"You got {scoreUp} points. ("
+                        f"{sum([monster.hp for monster in gameRoom.monsters]) + len(gameRoom.monsters) + realRoomCount}"
+                        f"(100 / {sum([hero.hp for hero in party])})) * {bonus} *"
+                        f"{realRoomCount} / {totalturns})")
+                myscore += scoreUp
     bonus = 10
     if turn == totalturns:
         print("IT IS THE LAST TURN!!!2!")
@@ -886,23 +933,6 @@ while turn <= totalturns and len(party) > 0:
             hero.turn(gameRoom, party)
         for monster in gameRoom.monsters:
             monster.turn(gameRoom, party)
-        herohp = sum([hero.hp for hero in party])
-        if herohp < 150:
-            scoreUp = math.ceil(
-                    sum([monster.hp for monster in gameRoom.monsters]) *
-                    (1 + ((150 - herohp) / 100)) * bonus * 
-                    realRoomCount / totalturns)
-            if scoreUp > 0:
-                print(f"You got {scoreUp} points.")
-                myscore += scoreUp
-        else:
-            scoreUp = math.ceil(
-                    sum([monster.hp for monster in gameRoom.monsters]) *
-                    (math.floor(150 / sum([hero.hp for hero in party]))) *
-                    bonus * realRoomCount / totalturns)
-            if scoreUp > 0:
-                print(f"You got {scoreUp} points.")
-                myscore += scoreUp
     turn += 1
 if len(gameRoom.monsters) == 0:
     print("{} stands, panting, over the prone ".format(party[0].name) +
