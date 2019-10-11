@@ -11,13 +11,113 @@ realRoomCount = 0
 myscore = 0
 ################################################################################
 #TODO
-#Come up with trees for each class
-#implement leveling
-#add lists of powers for fun
-#maybe try code some of the powers
+#Implement dropping
+#Implement leveling
+#Implement some fun powers
 
 
+################################################################################
+#POWER BLOCK
+powers = [] #a list of all registered powers
+class power:
+    def __init__(self, name, powerType, skillTree, level):
+        self.name = name
+        self.powerType = powerType
+        self.skillTree = skillTree
+        self.level = level
+        self.powerfunc = self.nofunc()
 
+    def nofunc(self):
+        pass
+
+    def getUsuablePowers(hero):
+        listofPowers = [power for power in hero.powers if \
+                hero.level >= power.level and hero.powerCharges >= power.cost]
+        return listofPowers
+
+
+class attackPower(power):
+    def __init__(self, name, powerType, skillTree, level, powerfunc, targets, 
+            cost):
+        super().__init__(name, powerType, skillTree, level)
+        self.targets = targets
+        self.cost = cost
+        self.powerfunc = powerfunc
+
+    def usePower(self, hero, target):
+        global gameRoom
+        if target == gameRoom:
+            #power is an AOE power targetting certain kinds of units in the 
+            #whole room
+            monsters = [monster for monster in gameRoom if \
+                    monster.path in self.targets]
+            if monsters:
+                print(f"{hero.name} uses the power of {self.name}!")
+                for monster in monsters:
+                    self.powerfunc(hero, monster)
+            else:
+                print(f"{hero.name} attempted to use the power of {self.name}, "
+                    "but nothing happened!")
+        elif isinstance(target, list):
+            #power is targetting a list of monsters
+            print(f"{hero.name} uses the power of {self.name}!")
+            for monster in target:
+                self.powerfunc(hero, monster)
+        else:
+            #power is targetting a single monster
+            print(f"{hero.name} uses the power of {self.name}!")
+            self.powerfunc(hero, target)
+
+    def basicAttack(hero, monster):
+        hero.attack(monster)
+
+def registerpower(name, powerType, skillTree, level, powerfunc, targets, cost):
+    global powers
+    if powerType == 'attack':
+        newPower = attackPower(name, powerType, skillTree, level, powerfunc, 
+                targets, cost)
+        newPower.powerfunc = newPower.basicAttack
+        powers.append(newPower)
+    else:
+        print("This powertype has not been defined (Config Issue).")
+
+def doPowerDrop(party):
+    activePowers = [power for power in powers if power.skillTree in \
+            [tree for treelist in [hero.trees for hero in party] \
+            for tree in treelist]]
+    if not activePowers:
+        return
+    newPower = random.choice(activePowers)
+    print(f"You found a level {newPower.level} {newPower.skillTree} power, "
+            f"\"{newPower.name}\"!")
+    recipientName = input("Who do you want to assign this power to? ")
+    assigned = False
+    while assigned == False:
+        if recipientName in [hero.name for hero in party]:
+            recipient = [hero for hero in party \
+                    if hero.name == recipientName][0]
+            if newPower.skillTree in recipient.trees:
+                recipient.powers.append(newPower)
+                assigned = True
+            else:
+                print(f"{recipientName} cannot receive this power because "
+                        f"{recipientName} does not have access to " 
+                        f"{newPower.skillTree} powers. Assign the power to "
+                        "another hero.")
+                eligible = [hero.name for hero in party if \
+                    newPower.skillTree in hero.trees]
+                print(f"Eligible heroes: {', '.split(map(str, eligible))}")
+        else:
+            print("There is no hero with that name in the party. Type your "
+                    "hero's names carefully.")
+
+
+#here is an example power to give me an idea of what powers need to do
+registerpower('heaven and earth', 'attack', 'holy', 1, 
+        'basicAttack', ['dragonstork', 'teaspirit'], 1)
+
+###################1#############################################################
+#CHARACTER BLOCK
 class meep:
     def __init__(self):
         self.team = 'neutral'
@@ -46,7 +146,7 @@ class hero(meep):
         self.poison = 0
         if self.path == 'barista':
             self.trees = random.sample(['restoration', 'fire', 'frost', 
-                    'earth', 'discipline'], 3)
+                    'earth', 'scholar'], 3)
         elif self.path == 'crusher':
             self.trees = random.sample(['fury', 'outlander', 'savagery',
                     'retribution', 'survival'], 3)
@@ -54,14 +154,15 @@ class hero(meep):
             self.trees = random.sample(['restoration', 'balance', 'savagery',
                     'earth', 'survival'], 3)
         elif self.path == 'janissary':
-            self.trees = random.sample(['spirit', 'arms', 'wind', 'judgement', 
+            self.trees = random.sample(['spirit', 'arms', 'wind', 'outlander', 
                     'fury'], 3)
         elif self.path == 'paladin':
             self.trees = random.sample(['holy', 'arms', 'retribution',
-                    'protection', 'judgement'], 3)
+                    'protection', 'discipline'], 3)
         elif self.path == 'priest':
             self.trees = random.sample(['holy', 'discipline', 'spirit',
                     'scholar', 'protection'], 3)
+        self.skills = []
 
     def attack(self, target):
         global bonus
@@ -82,6 +183,7 @@ class hero(meep):
         for monster in gameRoom.monsters:
             if monster.hp <= 0:
                 myscore += math.ceil(monster.score)
+                print(f"You got {math.ceil(monster.score)} points!")
                 gameRoom.monsters.remove(monster)
                 for hero in party:
                     if monster in hero.targets:
@@ -104,8 +206,9 @@ class hero(meep):
                     if monster.name == target])
             self.attack(attackee)
             if attackee.hp <= 0:
-                print("{} has fallen!".format(attackee.name))
+                print(f"{attackee.name} has fallen!")
                 myscore += math.ceil(attackee.score)
+                print(f"You got {math.ceil(attackee.score)} points!")
                 gameRoom.monsters.remove(attackee)
                 for hero in party: 
                     if attackee in hero.targets:
@@ -143,6 +246,7 @@ class hero(meep):
                 print(f"{monster.name} has fallen!")
                 bonus += 1
                 myscore += math.ceil(monster.score)
+                print(f"You got {math.ceil(monster.score)} points!")
                 gameRoom.monsters.remove(monster)
                 for hero in party:
                     if monster in hero.targets:
@@ -190,6 +294,7 @@ class barista(hero):
             if attackee.hp <= 0:
                 print(f"{attackee.name} has fallen!")
                 myscore += math.ceil(monster.score)
+                print(f"You got {math.ceil(monster.score)} points!")
                 gameRoom.monsters.remove(attackee)
                 for hero in party: 
                     if attackee in hero.targets:
@@ -290,6 +395,7 @@ class druid(hero):
             for monster in gameRoom.monsters:
                 if monster.hp <= 0:
                     myscore += math.ceil(monster.score)
+                    print(f"You got {math.ceil(monster.score)} points!")
                     gameRoom.monsters.remove(monster)
                     for hero in party:
                         if monster in hero.targets:
@@ -379,6 +485,7 @@ class janissary(hero):
             if attackee.hp <= 0:
                 print(f"{attackee.name} has fallen!")
                 myscore += math.ceil(attackee.score)
+                print(f"You got {math.ceil(attackee.score)} points!")
                 for hero in party:
                     if attackee in hero.targets:
                         hero.targets.remove(attackee)
@@ -393,6 +500,7 @@ class janissary(hero):
                 if target2.hp <= 0:
                     print("{} has fallen!".format(target2.name))
                     myscore += math.ceil(target2.score)
+                    print(f"You got {math.ceil(target2.score)} points!")
                     for hero in party:
                         if target2 in hero.targets:
                             hero.targets.remove(target2)
@@ -500,6 +608,7 @@ class monster(meep):
         targetList = [hero for hero in party if self in hero.targets]
         if self.hp <= 0:
             myscore += math.ceil(self.score)
+            print(f"You got {math.ceil(self.score)} points!")
             for hero in party:
                 if self in hero.targets:
                     hero.targets.remove(self)
@@ -551,6 +660,7 @@ class bloodknight(monster):
             self.damage(amount)
         if self.hp < 0:
             myscore += math.ceil(self.score)
+            print(f"You got {math.ceil(self.score)} points!")
             for hero in party:
                 if self in hero.targets:
                     hero.targets.remove(self)
@@ -725,7 +835,6 @@ class teaspirit(monster):
             target.damage(amount)
 
     def doLeftAlone(self, gameRoom, party):
-        global myscore
         global steep
         roll = random.randint(1, 3)
         if roll == 1:
@@ -760,6 +869,7 @@ class teaspirit(monster):
         targetList = [hero for hero in party if self in hero.targets]
         if self.hp <= 0:
             myscore += math.ceil(self.score)
+            print(f"You got {math.ceil(self.score)} points!")
             for hero in party:
                 if self in hero.targets:
                     hero.targets.remove(self)
@@ -986,10 +1096,7 @@ while turn <= totalturns and len(party) > 0:
                     (1 + ((100 - herohp) / 100)) * bonus * 
                     realRoomCount / totalturns)
             if scoreUp >= 0:
-                print(f"You got {scoreUp} points ("
-                        f"{sum([monster.score for monster in gameRoom.monsters]) + len(gameRoom.monsters) + realRoomCount}"
-                        f"(1 + ((100 - {herohp}) / 100)) * {bonus} *"
-                        f"{realRoomCount} / {totalturns})")
+                print(f"You got {scoreUp} points!")
                 myscore += scoreUp
         else:
             scoreUp = math.ceil(
@@ -998,18 +1105,19 @@ while turn <= totalturns and len(party) > 0:
                     (100 / sum([hero.hp for hero in party])) * bonus * 
                     realRoomCount / totalturns)
             if scoreUp >= 0:
-                print(f"You got {scoreUp} points. ("
-                        f"{sum([monster.score for monster in gameRoom.monsters]) + len(gameRoom.monsters) + realRoomCount}"
-                        f"(100 / {sum([hero.hp for hero in party])})) * {bonus} *"
-                        f"{realRoomCount} / {totalturns})")
+                print(f"You got {scoreUp} points!")
                 myscore += scoreUp
     bonus = 10
     if turn == totalturns:
         print("IT IS THE LAST TURN!!!2!")
     if len(gameRoom.monsters) == 0:
-        print("This room is empty! Time to go to a new room!")
+        print("This room is empty!")
+        if sum([len(hero.skills) for hero in party]) < realRoomCount:
+            print(f'DEBUG: {sum([len(hero.skills) for hero in party])} < {realRoomCount}?')
+            doPowerDrop(party)
+        print("Time to go to a new room!")
         if myscore > 0:
-            print("Your current score is {}!".format(myscore))
+            print(f"Your current score is {myscore}!")
         print(" ")
         for hero in party:
             hero.transition(party)
@@ -1068,4 +1176,6 @@ for score in scoredict[totalturns]:
 # save the score
 with open('GMG.dat', 'wb') as file:
     pickle.dump(scoredict, file)
+
+input("Press any key ")
 
