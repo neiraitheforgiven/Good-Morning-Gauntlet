@@ -25,15 +25,6 @@ class power:
         self.powerType = powerType
         self.skillTree = skillTree
         self.level = level
-        self.powerfunc = self.nofunc()
-
-    def nofunc(self):
-        pass
-
-    def getUsuablePowers(hero):
-        listofPowers = [power for power in hero.powers if \
-                hero.level >= power.level and hero.powerCharges >= power.cost]
-        return listofPowers
 
 
 class attackPower(power):
@@ -44,6 +35,23 @@ class attackPower(power):
         self.cost = cost
         self.powerlist = powerlist
         self.blurb = blurb
+
+    def powerfunc(self, hero, monster):
+        global gameRoom
+        if auraDam in self.powerlist:
+            amount = random.randint(auraDam[0], auraDam[1])
+            for target in hero.targets:
+                target.damage(amount)
+                print(f"{hero.name} deals {amount} damage to {target.name}.")
+        if 'basicAttack' in self.powerlist:
+            hero.attack(monster)
+        if extraAttackRoom in self.powerlist:
+            if any([command for command in extraAttackRoom \
+                    if command in gameRoom.size or command in gameRoom.desc]):
+                hero.attack(monster)
+        if 'stun' in self.powerlist:
+            monster.stunned = True
+            print(f"{hero.name} rings {monster.name}'s bell!")
 
     def usePower(self, hero, target):
         global gameRoom
@@ -58,7 +66,7 @@ class attackPower(power):
                 monsters = [gameRoom.monsters]
             if monsters:
                 for monster in monsters:
-                    print(f"DEBUG: self is a {type(self)}, hero is a {type(hero)}, target is a {type(target)}")
+                    #print(f"DEBUG: self is a {type(self)}, hero is a {type(hero)}, target is a {type(target)}")
                     self.powerfunc(hero, monster)
             else:
                 print(f"{hero.name} attempted to use the power of {self.name}, "
@@ -72,22 +80,8 @@ class attackPower(power):
                     print(f"{hero.name} attempted to use the power of "
                             f"{self.name}, but nothing happened!")
             else:
-                print(f"DEBUG: self is a {type(self)}, hero is a {type(hero)}, target is a {type(target)}")
+                #print(f"DEBUG: self is a {type(self)}, hero is a {type(hero)}, target is a {type(target)}")
                 self.powerfunc(hero, target)
-
-    def powerfunc(self, hero, monster):
-        global gameRoom
-        if auraDam in self.powerlist:
-            amount = random.choice(auraDam[0], auraDam[1])
-            for target in hero.targets:
-                target.damage(amount)
-        if 'basicaAttack' in self.powerlist:
-            self.basicAttack(hero, monster)
-        if extraAttack in self.powerlist:
-            if any(command in gameRoom.size or command in gameRoom.desc):
-                self.basicAttack(hero, monster)
-        if 'stun' in self.powerlist:
-            monster.stunned = True
 
 
 def registerpower(name, powerType, skillTree, level, powerlist, targets, cost,
@@ -98,7 +92,7 @@ def registerpower(name, powerType, skillTree, level, powerlist, targets, cost,
                 targets, cost, blurb)
         powers.append(newPower)
     else:
-        print("This powertype has not been defined (Config Issue).")
+        print("This powerType has not been defined (Config Issue).")
 
 def doPowerDrop(party):
     activePowers = [power for power in powers if power.skillTree in \
@@ -199,8 +193,10 @@ class hero(meep):
             self.trees = random.sample(['holy', 'discipline', 'spirit',
                     'scholasticism', 'protection'], 3)
         self.level = 1
+        self.trophies = []
+        self.xp = 0
         self.skills = []
-        self.skillCurrency = 0
+        self.skillCharges = 1
 
     def attack(self, target):
         global bonus
@@ -208,35 +204,26 @@ class hero(meep):
         print(f"{self.name} strikes a righteous blow against {target.name} "
                 f"for {amount} damage!")
         target.damage(amount)
+        self.xp += amount / target.startinghp / math.sqrt(self.level)
         bonus += amount / 50
 
-    def chooseSkill(self, targets):
-        possibleSkills = [skill for skill in self.skills \
-                if skill.powerType == 'attack' and \
-                skill.cost <= self.skillCurrency and \
-                skill.level <= self.level and (skill.targeting is None or \
-                set([target.path for target in self.targets]) & 
-                set(skill.targeting))]
+    def chooseSkill(self, targets, powerType):
+        possibleSkills = self.getUsuablePowers(powerType)
         if possibleSkills is None:
             return None
         for skill in possibleSkills:
             print(f"{hero.name} can use {skill.name}, which {skill.blurb}")
             command = input("Do you want to use it? ")
             if command in ('Yes', 'Y', 'y', 'yes', 'sure'):
-                self.skillCurrency -= skill.cost
+                self.skillCharges -= skill.cost
                 return skill
         return None
 
-    def chooseRandomSkill(self, targets):
-        possibleSkills = [skill for skill in self.skills \
-                if skill.powerType == 'attack' and \
-                skill.cost <= self.skillCurrency and \
-                skill.level <= self.level and (skill.targeting or \
-                set([target.path for target in self.targets]) & 
-                set(skill.targeting))]
-        if possibleSkills is None:
-            return None
-        return random.choice(possibleSkills)
+    def chooseRandomSkill(self, targets, powerType):
+        possibleSkills = self.getUsuablePowers(powerType)
+        if possibleSkills:
+            return random.choice(possibleSkills)
+        return None
 
     def combat(self, gameRoom, party):
         global bonus
@@ -251,6 +238,12 @@ class hero(meep):
                 for hero in party:
                     if monster in hero.targets:
                         hero.targets.remove(monster)
+                if monster.path not in self.trophies:
+                    print(f"{self.name} gathered a trophy from {monster.name}!")
+                    self.trophies.append(monster.path)
+                    self.xp += 49 / math.sqrt(self.level)
+                else:
+                    self.xp += monster.startinghp / math.sqrt(self.level)
         while len(self.targets) < 3 and \
                 len(gameRoom.monsters) > len(self.targets):
             self.targets.append(random.choice(
@@ -258,13 +251,13 @@ class hero(meep):
                     if monster not in self.targets]))
         for monster in self.targets:
             monster.announce(self)
-        self.skillCurrency += 1
-        if 0 < self.skillCurrency < 11:
-            chooseSkill = self.chooseSkill(self.targets)
+        self.skillCharges += 1
+        if 0 < self.skillCharges < 11:
+            chooseSkill = self.chooseSkill(self.targets, 'attack')
         else:
             print(f"{self.name} overflows with power, suddenly manifesting "
                     "a secret attack!")
-            chooseSkill = self.chooseRandomSkill(self.targets)
+            chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
         if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
@@ -287,9 +280,29 @@ class hero(meep):
                     for hero in party: 
                         if attackee in hero.targets:
                             hero.targets.remove(attackee)
+                    if attackee.path not in self.trophies:
+                        print(f"{self.name} gathered a trophy from {attackee.name}!")
+                        self.trophies.append(attackee.path)
+                        self.xp += 49 / math.sqrt(self.level)
+                    else:
+                        self.xp += attackee.startinghp / math.sqrt(self.level)
                     bonus += 1
         elif isinstance(chooseSkill.targeting, list):
             chooseSkill.usePower(self, gameRoom)
+
+    def getUsuablePowers(self, powerType):
+        listofPowers = [skill for skill in self.skills if \
+                self.level >= skill.level and self.skillCharges >= skill.cost \
+                and skill.powerType == powerType]
+        return listofPowers
+
+    def levelUp(self):
+        self.level += 1
+        self.xp = 0
+        print(f"{self.name} becomes level {self.level}!".upper())
+        for skill in self.skills:
+            if skill.level == self.level:
+                print(f"{self.name} can use {skill.name} now!")
 
     def transition(self, party):
         global bonus
@@ -328,6 +341,8 @@ class hero(meep):
                     if monster in hero.targets:
                         hero.targets.remove(monster)
         self.combat(gameRoom, party)
+        if self.xp >= 100:
+            self.levelUp()
 
 ################################################################################
 #   HERO CLASSES
@@ -351,31 +366,65 @@ class barista(hero):
             self.targets.append(random.choice(
                     [monster for monster in gameRoom.monsters 
                     if monster not in self.targets]))
+        for monster in gameRoom.monsters:
+            if monster.hp <= 0:
+                myscore += math.ceil(monster.score)
+                print(f"You got {math.ceil(monster.score)} points!")
+                gameRoom.monsters.remove(monster)
+                for hero in party:
+                    if monster in hero.targets:
+                        hero.targets.remove(monster)
+                if monster.path not in self.trophies:
+                    print(f"{self.name} gathered a trophy from {monster.name}!")
+                    self.trophies.append(monster.path)
+                    self.xp += 49 / math.sqrt(self.level)
+                else:
+                    self.xp += monster.startinghp / math.sqrt(self.level)
         for monster in self.targets:
             for hero in party:
                 if hero != self:
                     if monster in hero.targets:
                         self.orders += 1
             monster.announce(self)
-        target = str(input("Which one do you want to attack? "))
-        if target not in [monster.name for monster in self.targets]:
-            print("You missed! Type enemy names more carefully.")
+        self.skillCharges += 1
+        if 0 < self.skillCharges < 11:
+            chooseSkill = self.chooseSkill(self.targets, 'attack')
+        else:
+            print(f"{self.name} overflows with power, suddenly manifesting "
+                    "a secret attack!")
+            chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
+        if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
                 print("You missed! Type enemy names more carefully.")
-        if target in [monster.name for monster in self.targets]:
-            attackee = min([monster for monster in self.targets \
-                    if monster.name == target])
-            self.attack(attackee)
-            if attackee.hp <= 0:
-                print(f"{attackee.name} has fallen!")
-                myscore += math.ceil(monster.score)
-                print(f"You got {math.ceil(monster.score)} points!")
-                gameRoom.monsters.remove(attackee)
-                for hero in party: 
-                    if attackee in hero.targets:
-                        hero.targets.remove(attackee)
-                bonus += 1
+                target = str(input("Which one do you want to attack? "))
+                if target not in [monster.name for monster in self.targets]:
+                    print("You missed! Type enemy names more carefully.")
+            if target in [monster.name for monster in self.targets]:
+                attackee = min([monster for monster in self.targets \
+                        if monster.name == target])
+                if chooseSkill:
+                    chooseSkill.usePower(self, attackee)
+                else:
+                    self.attack(attackee)
+                if attackee.hp <= 0:
+                    print(f"{attackee.name} has fallen!")
+                    myscore += math.ceil(monster.score)
+                    print(f"You got {math.ceil(monster.score)} points!")
+                    gameRoom.monsters.remove(attackee)
+                    for hero in party: 
+                        if attackee in hero.targets:
+                            hero.targets.remove(attackee)
+                    if attackee.path not in self.trophies:
+                        print(f"{self.name} gathered a trophy from "
+                                f"{attackee.name}!")
+                        self.trophies.append(attackee.path)
+                        self.xp += 49 / math.sqrt(self.level)
+                    else:
+                        self.xp += attackee.startinghp / math.sqrt(self.level)
+                    bonus += 1
+        elif isinstance(chooseSkill.targeting, list):
+            chooseSkill.usePower(self, gameRoom)
 
     def damage(self, amount):
         global bonus
@@ -420,6 +469,7 @@ class crusher(hero):
             print(f"{self.name} crushes {target.name}'s head.")
             amount = target.hp
             target.damage(amount)
+        self.xp += amount / target.startinghp / math.sqrt(self.level)
         bonus += amount / 50
 
 
@@ -442,6 +492,7 @@ class druid(hero):
             target.damage(amount)
             bonus += amount / 50
             self.naturepower += math.ceil(amount / 5)
+            self.xp += amount / target.startinghp / math.sqrt(self.level)
         else:
             super().attack(target)
 
@@ -461,6 +512,7 @@ class druid(hero):
             return
         elif self.form == 'healer':
             super().combat(gameRoom, party)
+            self.naturepower += len(party)
         elif self.form == 'wolbear':
             if len(self.targets) > 3:
                 self.targets = self.targets[:3]
@@ -477,6 +529,12 @@ class druid(hero):
                     for hero in party:
                         if monster in hero.targets:
                             hero.targets.remove(monster)
+                    if monster.path not in self.trophies:
+                        print(f"{self.name} gathered a trophy from {monster.name}!")
+                        self.trophies.append(monster.path)
+                        self.xp += 49 / math.sqrt(self.level)
+                    else:
+                        self.xp += monster.startinghp / math.sqrt(self.level)
                     bonus += 1
             while len(self.targets) < 3 and \
                     len(gameRoom.monsters) > len(self.targets):
@@ -547,43 +605,68 @@ class janissary(hero):
                     if monster not in self.targets]))
         for monster in self.targets:
             monster.announce(self)
-        target = str(input("Which one do you want to attack? "))
-        if target not in [monster.name for monster in self.targets]:
-            print("You missed! Type enemy names more carefully.")
+        self.skillCharges += 1
+        if 0 < self.skillCharges < 11:
+            chooseSkill = self.chooseSkill(self.targets, 'attack')
+        else:
+            print(f"{self.name} overflows with power, suddenly manifesting "
+                    "a secret attack!")
+            chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
+        if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
                 print("You missed! Type enemy names more carefully.")
-        if target in [monster.name for monster in self.targets]:
-            attackee = min([monster for monster in self.targets \
-                    if monster.name == target])
-            spirithp = attackee.hp
-            self.attack(attackee)
-            spirithp = math.floor(spirithp * (random.randint(35,65) / 100))
-            if attackee.hp <= 0:
-                print(f"{attackee.name} has fallen!")
-                myscore += math.ceil(attackee.score)
-                print(f"You got {math.ceil(attackee.score)} points!")
-                for hero in party:
-                    if attackee in hero.targets:
-                        hero.targets.remove(attackee)
-                gameRoom.monsters.remove(attackee)
-                bonus += 1
-            if len(gameRoom.monsters) > 0 and spirithp > 0:
-                target2 = random.choice([monster 
-                        for monster in gameRoom.monsters])
-                print(f"A spirit force deals {spirithp} damage to "
-                        f"{target2.name}")
-                target2.damage(spirithp)
-                if target2.hp <= 0:
-                    print("{} has fallen!".format(target2.name))
-                    myscore += math.ceil(target2.score)
-                    print(f"You got {math.ceil(target2.score)} points!")
+                target = str(input("Which one do you want to attack? "))
+                if target not in [monster.name for monster in self.targets]:
+                    print("You missed! Type enemy names more carefully.")
+            if target in [monster.name for monster in self.targets]:
+                attackee = min([monster for monster in self.targets \
+                        if monster.name == target])
+                if chooseSkill:
+                    chooseSkill.usePower(self, attackee)
+                else:
+                    spirithp = attackee.hp
+                    self.attack(attackee)
+                    spirithp = math.floor(spirithp * (random.randint(35,65) / 100))
+                    if len(gameRoom.monsters) > 0 and spirithp > 0:
+                        target2 = random.choice([monster 
+                                for monster in gameRoom.monsters])
+                        print(f"A spirit force deals {spirithp} damage to "
+                                f"{target2.name}")
+                        target2.damage(spirithp)
+                        if target2.hp <= 0:
+                            print("{} has fallen!".format(target2.name))
+                            myscore += math.ceil(target2.score)
+                            print(f"You got {math.ceil(target2.score)} points!")
+                            for hero in party:
+                                if target2 in hero.targets:
+                                    hero.targets.remove(target2)
+                            if target2 in gameRoom.monsters:
+                                gameRoom.monsters.remove(target2)
+                            if target2.path not in self.trophies:
+                                print(f"{self.name} gathered a trophy from {target2.name}!")
+                                self.trophies.append(target2.path)
+                                self.xp += 49 / math.sqrt(self.level)
+                            else:
+                                self.xp += target2.startinghp / math.sqrt(self.level)
+                            bonus += 0.5
+                if attackee.hp <= 0:
+                    print(f"{attackee.name} has fallen!")
+                    myscore += math.ceil(attackee.score)
+                    print(f"You got {math.ceil(attackee.score)} points!")
                     for hero in party:
-                        if target2 in hero.targets:
-                            hero.targets.remove(target2)
-                    if target2 in gameRoom.monsters:
-                        gameRoom.monsters.remove(target2)
-                    bonus += 0.5
+                        if attackee in hero.targets:
+                            hero.targets.remove(attackee)
+                    gameRoom.monsters.remove(attackee)
+                    if attackee.path not in self.trophies:
+                        print(f"{self.name} gathered a trophy from {attackee.name}!")
+                        self.trophies.append(attackee.path)
+                        self.xp += 49 / math.sqrt(self.level)
+                    else:
+                        self.xp += attackee.startinghp / math.sqrt(self.level)
+                    bonus += 1
+        elif isinstance(chooseSkill.targeting, list):
+            chooseSkill.usePower(self, gameRoom)
 
 
 class paladin(hero):
@@ -618,6 +701,7 @@ class paladin(hero):
                     "{} for {} damage!".format(self.name, target.name, 
                     amount + weapondmg))
             target.damage(amount + weapondmg)
+            self.xp += amount / target.startinghp / math.sqrt(self.level)
             bonus += amount / 50
 
     def damage(self, amount):
@@ -665,6 +749,7 @@ class monster(meep):
         self.team = 'evil'
         self.name = None
         self.score = math.ceil(self.hp * 10 / totalturns)
+        self.startinghp = self.hp
 
     def announce(self, hero):
         print(f"{hero.name} faces a {self.path} named {self.name} with "
