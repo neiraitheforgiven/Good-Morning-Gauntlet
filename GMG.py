@@ -70,10 +70,10 @@ class hero(meep):
                     if monster not in self.targets]))
         for monster in self.targets:
             monster.announce(self)
-        target = str(input("Which one do you want to attack? "))
+        target = str(input("Which one do you want to attack? (hint: type the monster's name.)"))
         if target not in [monster.name for monster in self.targets]:
             print("You missed! Type enemy names more carefully.")
-            target = str(input("Which one do you want to attack? "))
+            target = str(input("Which one do you want to attack? (hint: type the monster's name.)"))
             if target not in [monster.name for monster in self.targets]:
                 print("You missed! Type enemy names more carefully.")
         if target in [monster.name for monster in self.targets]:
