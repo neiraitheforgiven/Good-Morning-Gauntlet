@@ -38,13 +38,13 @@ class attackPower(power):
 
     def powerfunc(self, hero, monster):
         global gameRoom
+        if 'basicAttack' in self.powerlist:
+            hero.attack(monster)
         if auraDam in self.powerlist:
             amount = random.randint(auraDam[0], auraDam[1])
             for target in hero.targets:
                 target.damage(amount)
                 print(f"{hero.name} deals {amount} damage to {target.name}.")
-        if 'basicAttack' in self.powerlist:
-            hero.attack(monster)
         if extraAttackRoom in self.powerlist:
             if any([command for command in extraAttackRoom \
                     if command in gameRoom.size or command in gameRoom.desc]):
@@ -70,7 +70,7 @@ class attackPower(power):
                     self.powerfunc(hero, monster)
             else:
                 print(f"{hero.name} attempted to use the power of {self.name}, "
-                    "but nothing happened!")
+                    "but nothing happened!1!")
         else:
             #target is a single monster ("attackee")
             if isinstance(self.targeting, list):
@@ -78,7 +78,7 @@ class attackPower(power):
                     self.powerfunc(hero, target)
                 else:
                     print(f"{hero.name} attempted to use the power of "
-                            f"{self.name}, but nothing happened!")
+                            f"{self.name}, but nothing happened!2!")
             else:
                 #print(f"DEBUG: self is a {type(self)}, hero is a {type(hero)}, target is a {type(target)}")
                 self.powerfunc(hero, target)
@@ -101,9 +101,12 @@ def doPowerDrop(party):
     if not activePowers:
         return
     newPower = random.choice(activePowers)
+    eligible = [hero.name for hero in party if newPower.skillTree in hero.trees \
+            and newPower not in hero.skills]
+    if not eligible:
+        return
     print(f"You found a level {newPower.level} {newPower.skillTree} power, "
             f"\"{newPower.name}\"!")
-    eligible = [hero.name for hero in party if newPower.skillTree in hero.trees]
     print(f"Eligible heroes: {', '.join(map(str, eligible))}")
     recipientName = input("Who do you want to assign this power to? ")
     assigned = False
@@ -131,17 +134,17 @@ def doPowerDrop(party):
 
 #here is an example power to give me an idea of what powers need to do
 registerpower('heaven and earth', 'attack', 'holy', 1, ['basicAttack'], 
-        ['dragonstork', 'teaspirit'], 1, "summons the fire of heaven to smite "
+        ['dragonstork', 'teaspirit'], 6, "summons the fire of heaven to smite "
         "all the flying enemies!")
 auraDam = [1, 1]
 registerpower('swipe', 'attack', 'savagery', 1, [auraDam, 'basicAttack'], None, 
-        1, "rakes clawlike hands across the monster's faces.")
+        3, "rakes clawlike hands across the monster's faces.")
 extraAttackRoom = ['cramped', 'small']
 registerpower('knife party', 'attack', 'fury', 1, ['basicAttack', 
-        extraAttackRoom], None, 1, "stabs at the enemy once, and a second time "
+        extraAttackRoom], None, 3, "stabs at the enemy once, and a second time "
         "if they can't get away.")
 registerpower('stunning blow', 'attack', 'arms', 1, ['basicAttack', 'stun'],
-        None, 1, "slams a monster in the head, causing it to skip its next "
+        None, 4, "slams a monster in the head, causing it to skip its next "
         "action.")
 
 
@@ -258,6 +261,7 @@ class hero(meep):
             print(f"{self.name} overflows with power, suddenly manifesting "
                     "a secret attack!")
             chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
+            self.skillCharges = 0
         if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
@@ -393,6 +397,7 @@ class barista(hero):
             print(f"{self.name} overflows with power, suddenly manifesting "
                     "a secret attack!")
             chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
+            self.skillCharges = 0
         if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
@@ -612,6 +617,7 @@ class janissary(hero):
             print(f"{self.name} overflows with power, suddenly manifesting "
                     "a secret attack!")
             chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
+            self.skillCharges = 0
         if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
