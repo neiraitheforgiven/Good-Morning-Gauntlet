@@ -254,14 +254,16 @@ class hero(meep):
                     if monster not in self.targets]))
         for monster in self.targets:
             monster.announce(self)
-        self.skillCharges += 1
-        if 0 < self.skillCharges < 11:
-            chooseSkill = self.chooseSkill(self.targets, 'attack')
-        else:
-            print(f"{self.name} overflows with power, suddenly manifesting "
-                    "a secret attack!")
-            chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
-            self.skillCharges = 0
+        chooseSkill = None
+        if hero.skills:
+            self.skillCharges += 1
+            if 0 < self.skillCharges < 11:
+                chooseSkill = self.chooseSkill(self.targets, 'attack')
+            else:
+                print(f"{self.name} overflows with power, suddenly manifesting "
+                        "a secret attack!")
+                chooseSkill = self.chooseRandomSkill(self.targets, 'attack')
+                self.skillCharges = 0
         if chooseSkill is None or chooseSkill.targeting is None:
             target = str(input("Which one do you want to attack? "))
             if target not in [monster.name for monster in self.targets]:
@@ -656,21 +658,21 @@ class janissary(hero):
                             else:
                                 self.xp += target2.startinghp / math.sqrt(self.level)
                             bonus += 0.5
-                if attackee.hp <= 0:
-                    print(f"{attackee.name} has fallen!")
-                    myscore += math.ceil(attackee.score)
-                    print(f"You got {math.ceil(attackee.score)} points!")
-                    for hero in party:
-                        if attackee in hero.targets:
-                            hero.targets.remove(attackee)
-                    gameRoom.monsters.remove(attackee)
-                    if attackee.path not in self.trophies:
-                        print(f"{self.name} gathered a trophy from {attackee.name}!")
-                        self.trophies.append(attackee.path)
-                        self.xp += 49 / math.sqrt(self.level)
-                    else:
-                        self.xp += attackee.startinghp / math.sqrt(self.level)
-                    bonus += 1
+                    if attackee.hp <= 0:
+                        print(f"{attackee.name} has fallen!")
+                        myscore += math.ceil(attackee.score)
+                        print(f"You got {math.ceil(attackee.score)} points!")
+                        for hero in party:
+                            if attackee in hero.targets:
+                                hero.targets.remove(attackee)
+                        gameRoom.monsters.remove(attackee)
+                        if attackee.path not in self.trophies:
+                            print(f"{self.name} gathered a trophy from {attackee.name}!")
+                            self.trophies.append(attackee.path)
+                            self.xp += 49 / math.sqrt(self.level)
+                        else:
+                            self.xp += attackee.startinghp / math.sqrt(self.level)
+                        bonus += 1
         elif isinstance(chooseSkill.targeting, list):
             chooseSkill.usePower(self, gameRoom)
 
