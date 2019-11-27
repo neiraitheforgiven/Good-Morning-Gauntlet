@@ -255,7 +255,7 @@ class hero(meep):
         for monster in self.targets:
             monster.announce(self)
         chooseSkill = None
-        if hero.skills:
+        if self.skills:
             self.skillCharges += 1
             if 0 < self.skillCharges < 11:
                 chooseSkill = self.chooseSkill(self.targets, 'attack')
@@ -732,13 +732,13 @@ class priest(hero):
         global bonus
         print(" ")
         if len(gameRoom.monsters) != 0:
-            do = str(input(f"Do you want {self.name} to Pray? "))
+            do = str(input(f"Do you want {self.name} to Pray? ")).lower()
             amount = math.ceil(self.faith / len(party))
             print(f"{self.name} channels faith to heal the party for "
                     f"{amount} hit points!")
             for hero in party:
                 hero.heal(amount)
-            if do in ("Pray", "pray", "P", "Y", "Yes", "yes"):
+            if do in ("pray", "p", "y", "yes"):
                 self.targets = []
                 self.faith += 1
                 print(f"{self.name}'s faith is strengthened to {self.faith}.")
@@ -778,7 +778,6 @@ class monster(meep):
             print(f"{self.name} is stunned!")
             self.stunned = False
             return
-        print(" ")
         targetList = [hero for hero in party if self in hero.targets]
         if self.hp <= 0:
             myscore += math.ceil(self.score)
@@ -805,6 +804,7 @@ class monster(meep):
                     bonus -= 2
         else:
             monster.doLeftAlone(gameRoom, party)
+        print(" ")
 
 ################################################################################
 #   MONSTER CLASSES
@@ -880,6 +880,7 @@ class dragonstork(monster):
         if self.stunned:
             print(f"{self.name} is stunned!")
             self.stunned = False
+            return
         targetList = [hero for hero in party if self in hero.targets]
         if self.hp <= 0:
             for hero in party:
@@ -1046,6 +1047,7 @@ class teaspirit(monster):
         if self.stunned:
             print(f"{self.name} is stunned!")
             self.stunned = False
+            return
         targetList = [hero for hero in party if self in hero.targets]
         if self.hp <= 0:
             myscore += math.ceil(self.score)
@@ -1126,6 +1128,7 @@ class turtle(monster):
         if self.stunned:
             print(f"{self.name} is stunned!")
             self.stunned = False
+            return
         if self.shell == 1:
             self.shell = 0
             print("{} emerges from its shell".format(self.name))
